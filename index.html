@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Khushi AI Test</title>
+    <title>Khushi AI - Milestone 3</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
-        #canvas-container { width: 100vw; height: 100vh; }
+        #canvas-container { width: 100vw; height: 100vh; cursor: pointer; }
         .ui { position: absolute; bottom: 30px; width: 100%; text-align: center; }
-        #status { color: #fff; background: #ff69b4; padding: 12px; border-radius: 10px; display: inline-block; margin-bottom: 10px; border: 2px solid white; }
-        button { background: white; color: #ff69b4; border: none; padding: 15px 40px; border-radius: 30px; font-weight: bold; font-size: 18px; cursor: pointer; }
+        #status { color: #fff; background: #ff69b4; padding: 12px; border-radius: 10px; display: inline-block; margin-bottom: 10px; border: 2px solid white; width: 85%; font-weight: bold; }
+        button { background: white; color: #ff69b4; border: none; padding: 15px 40px; border-radius: 30px; font-weight: bold; font-size: 18px; cursor: pointer; box-shadow: 0 5px 15px rgba(255,105,180,0.4); }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
     <div class="ui">
-        <div id="status">Khushi: Prince, main load ho rahi hoon...</div><br>
-        <button id="startBtn">Testing Button</button>
+        <div id="status">Khushi: Prince, main taiyar hoon! 💖</div><br>
+        <button id="startBtn">Khushi se Baat Karein</button>
     </div>
 
     <script type="importmap">
@@ -30,6 +30,7 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { VRMLoaderPlugin } from '@pixiv/three-vrm';
 
+        const API_KEY = "AIzaSyBONS9oyY-HRNqOmDLuD4V0DTvkPmhAvFI"; 
         let currentVrm = null;
         const statusText = document.getElementById('status');
 
@@ -47,27 +48,61 @@
         loader.load('./MODEL.vrm', (gltf) => {
             currentVrm = gltf.userData.vrm;
             scene.add(currentVrm.scene);
-            currentVrm.scene.rotation.y = 0; // Face Front Fix
-            statusText.innerText = "Khushi: Main taiyar hoon! Button dabayein.";
+            currentVrm.scene.rotation.y = 0; // Front Face Fix
         });
 
+        const recognition = new (window.webkitSpeechRecognition || window.SpeechRecognition)();
+        recognition.lang = 'hi-IN';
+
         document.getElementById('startBtn').onclick = () => {
-            const ut = new SpeechSynthesisUtterance("Prince, main aapko sun rahi hoon. Abhi API connect nahi hai, par main active hoon.");
+            recognition.start();
+            statusText.innerText = "Suno, main sun rahi hoon...";
+        };
+
+        recognition.onresult = async (event) => {
+            const userSpeech = event.results[0][0].transcript;
+            statusText.innerText = "Prince: " + userSpeech;
+            
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "Tumhara naam Khushi hai. Tum Prince ki sabse achhi dost ho. Hindi mein chota aur pyara jawab do: " + userSpeech }] }] })
+                });
+                const data = await response.json();
+                const reply = data.candidates[0].content.parts[0].text;
+                handleResponse(reply);
+            } catch(e) {
+                // Connection Safety Net
+                handleResponse("Network mein thodi problem hai Prince, par main hamesha aapke saath hoon!");
+            }
+        };
+
+        function handleResponse(text) {
+            statusText.innerText = "Khushi: " + text;
+            speak(text);
+        }
+
+        function speak(text) {
+            const ut = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            const hindiVoice = voices.find(v => v.lang.includes('hi-IN') && v.name.includes('Google'));
+            if(hindiVoice) ut.voice = hindiVoice;
             ut.lang = 'hi-IN';
+            ut.pitch = 1.2; 
+            
             ut.onstart = () => { if(currentVrm) currentVrm.expressionManager.setValue('aa', 0.5); };
             ut.onend = () => { if(currentVrm) currentVrm.expressionManager.setValue('aa', 0); };
             window.speechSynthesis.speak(ut);
-            statusText.innerText = "Khushi: Testing Success!";
-        };
+        }
 
         const clock = new THREE.Clock();
         function animate() {
             requestAnimationFrame(animate);
             if (currentVrm) {
                 currentVrm.update(clock.getDelta());
-                // Blinking Effect
-                const blink = Math.sin(clock.elapsedTime * 4) > 0.95 ? 1 : 0;
-                currentVrm.expressionManager.setValue('blink', blink);
+                const blink = Math.sin(clock.elapsedTime * 4) > 0.96 ? 1 : 0;
+                currentVrm.expressionManager.setValue('blink', blink); // Auto Blinking
             }
             renderer.render(scene, camera);
         }
